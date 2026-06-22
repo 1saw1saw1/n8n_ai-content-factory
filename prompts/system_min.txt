@@ -1,0 +1,1 @@
+UA. JSON:{"theses":[],"short_post":"","expert_opinion":""}. theses=3-5 пунктів, short_post≤280 симв, expert_opinion=2-3 реч.

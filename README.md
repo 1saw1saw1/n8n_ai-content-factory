@@ -1,6 +1,6 @@
 # AI Content Factory
 
-Автоматична фабрика контенту: URL або текст → Gemini → зображення → Telegram і socials.
+Автоматична фабрика контенту: URL або текст → Groq (Llama 3.3 70B) → зображення → Telegram і socials.
 
 ## Problem
 
@@ -11,7 +11,7 @@
 Один webhook-запит запускає ланцюжок:
 
 1. **format_text.js** — скрейп URL (fallback: URL у промпт) або нормалізація тексту
-2. **gemini_cached.js** — Gemini 2.0 Flash з JSON-кешем → `theses`, `short_post`, `expert_opinion`
+2. **gemini_cached.js** — Groq Llama 3.3 70B з JSON-кешем → `theses`, `short_post`, `expert_opinion`
 3. **Pollinations.ai** — зображення за `short_post`
 4. **n8n** — відправка в Telegram + HTTP-заглушки для socials
 
@@ -20,7 +20,7 @@
 | Компонент | Роль |
 |-----------|------|
 | **n8n** | Оркестратор workflow (Docker) |
-| **Google Gemini** | Генерація тексту (мінімум токенів) |
+| **Groq (Llama 3.3 70B)** | Генерація тексту (безкоштовно, швидко) |
 | **Pollinations.ai** | Генерація зображення |
 | **Node.js scripts** | format_text + gemini_cached |
 | **Cursor** | Розробка та ітерація промптів |
@@ -42,55 +42,49 @@
 
 ```bash
 cp .env.example .env
-# заповніть GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+# заповніть GROQ_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 ```
 
-### 2. n8n (Docker)
+### 2. n8n (Docker Compose)
 
 ```bash
-docker run -d --name n8n \
-  -p 5678:5678 \
-  -v C:/Users/Admin/ai-content-factory:/data/ai-content-factory \
-  -e SCRIPT_DIR=/data/ai-content-factory \
-  -e GEMINI_API_KEY=your_key \
-  -e GEMINI_MODEL=gemini-2.0-flash \
-  -e TELEGRAM_BOT_TOKEN=your_token \
-  -e TELEGRAM_CHAT_ID=your_chat_id \
-  -e NODES_EXCLUDE="[]" \
-  n8nio/n8n
+docker compose up -d
 ```
 
-> Windows: замініть шлях volume на ваш абсолютний шлях до проєкту.  
-> `NODES_EXCLUDE="[]"` — увімкнути вузол Execute Command для скриптів.
+> Потрібен файл `.env` в корені проєкту поруч з `docker-compose.yml`.
 
 ### 3. Import workflow
 
 1. Відкрийте http://localhost:5678
 2. **Workflows → Import from File** → `workflows/foundation_ai_content_factory.json`
-3. У вузлі **Telegram** підключіть credential бота
-4. Активуйте workflow
+3. Активуйте workflow (тумблер **Active** у правому верхньому куті)
 
-### 4. Тест скриптів локально
+### 4. Тест скриптів локально (всередині контейнера)
 
 ```bash
-node scripts/format_text.js --text "Штучний інтелект змінює маркетинг"
-node scripts/gemini_cached.js --input "Штучний інтелект змінює маркетинг"
+docker exec n8n node /data/projects/n8n_ai-content-factory/scripts/format_text.js --text "Штучний інтелект змінює маркетинг"
+docker exec n8n node /data/projects/n8n_ai-content-factory/scripts/gemini_cached.js --input "Штучний інтелект змінює маркетинг"
 ```
 
 ### 5. Webhook
 
-```bash
-curl -X POST http://localhost:5678/webhook/content-factory \
-  -H "Content-Type: application/json" \
-  -d "{\"text\": \"OpenAI та Google конкурують за ринок LLM\"}"
+**PowerShell:**
+```powershell
+$body = '{"text": "OpenAI та Google конкурують за ринок LLM"}'
+Invoke-RestMethod -Method POST -Uri "http://localhost:5678/webhook/content-factory" -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 ```
 
-Або з URL:
-
+**curl (Linux/Mac):**
 ```bash
 curl -X POST http://localhost:5678/webhook/content-factory \
   -H "Content-Type: application/json" \
-  -d "{\"url\": \"https://example.com/article\"}"
+  -d '{"text": "OpenAI та Google конкурують за ринок LLM"}'
+```
+
+Або з URL статті:
+```powershell
+$body = '{"url": "https://example.com/article"}'
+Invoke-RestMethod -Method POST -Uri "http://localhost:5678/webhook/content-factory" -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 ```
 
 ---
@@ -118,7 +112,7 @@ ai-content-factory/
 }
 ```
 
-Кеш: `cache/gemini.json` — ключ SHA256(system + input).
+Кеш: `cache/groq.json` — ключ SHA256(system + input).
 
 ## Social stubs
 

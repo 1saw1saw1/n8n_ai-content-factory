@@ -31,7 +31,6 @@
 
 ### Telegram screenshot
 
-Після першого успішного запуску збережіть скрін як `docs/telegram-demo.png` і перегляньте тут:
 
 ![Telegram demo](docs/telegram-demo.png)
 

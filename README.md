@@ -34,6 +34,8 @@
 
 ![Telegram demo](docs/telegram-demo.png)
 
+![Telegram demo 2](docs/telegram-demo-2.png)
+
 ---
 
 ## Швидкий старт

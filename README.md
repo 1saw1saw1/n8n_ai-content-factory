@@ -117,3 +117,73 @@ ai-content-factory/
 ## Social stubs
 
 Вузли **Stub Twitter / LinkedIn / Facebook** шлють POST на `httpbin.org` — замініть URL на реальні API платформ.
+
+---
+
+## Повна автоматизація (наступний крок)
+
+Поточний воркфлоу запускається вручну через webhook. Для повністю автономної роботи — щоб система сама збирала новини і публікувала пости — потрібно додати три компоненти:
+
+### 1. Schedule Trigger
+Замінює Webhook-тригер. Запускає воркфлоу автоматично за розкладом.
+
+У n8n: нода **Schedule Trigger** → інтервал (наприклад, кожні 30 хв або у 9:00/15:00/21:00).
+
+### 2. RSS Feed Reader
+Читає свіжі новини з футбольних сайтів.
+
+У n8n: нода **RSS Feed Read** → вкажіть URL RSS-стрічки.
+
+Приклади футбольних RSS:
+| Джерело | URL |
+|---------|-----|
+| BBC Sport Football | `https://feeds.bbci.co.uk/sport/football/rss.xml` |
+| Sport.ua | `https://sport.ua/rss/football` |
+| UEFA | `https://www.uefa.com/rssfeed/uefachampionsleague/index.xml` |
+| Goal.com | `https://www.goal.com/feeds/en/news` |
+
+Можна підключити кілька джерел паралельно через **Merge** ноду.
+
+### 3. Фільтр дублів
+Перевіряє, чи вже публікувалась ця новина (за заголовком або URL).
+
+```javascript
+// Code-нода: фільтр дублів
+const fs = require('fs');
+const PUBLISHED_FILE = '/data/projects/n8n_ai-content-factory/cache/published.json';
+
+let published = [];
+try { published = JSON.parse(fs.readFileSync(PUBLISHED_FILE, 'utf8')); } catch (_) {}
+
+const items = $input.all().filter(item => {
+  const id = item.json.link || item.json.title;
+  return !published.includes(id);
+});
+
+// Зберегти нові ID
+const newIds = items.map(i => i.json.link || i.json.title);
+fs.mkdirSync('/data/projects/n8n_ai-content-factory/cache', { recursive: true });
+fs.writeFileSync(PUBLISHED_FILE, JSON.stringify([...published, ...newIds].slice(-500)));
+
+return items.map(item => ({ json: { url: item.json.link, text: item.json.title + '. ' + (item.json.contentSnippet || '') } }));
+```
+
+### Схема повного воркфлоу
+
+```
+Schedule Trigger
+      ↓
+RSS Feed Read (кілька джерел)
+      ↓
+Фільтр дублів (Code)
+      ↓
+Format Text (script)
+      ↓
+Groq AI (script)
+      ↓
+Pollinations.ai (зображення)
+      ↓
+Telegram → Twitter → LinkedIn → Facebook
+```
+
+> Поточний `foundation_ai_content_factory.json` — це базовий шаблон з ручним запуском. Описані вузли додаються у n8n UI без зміни скриптів.
